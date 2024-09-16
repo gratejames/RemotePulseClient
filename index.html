@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Remote Pulse</title>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+
+<h1>Server Stats</h1>
+<div id="tabselector">
+    <button id="summaryTab" onclick="setPage('summary');">Summary</button>
+</div>
+<div id="tabs">
+    <div id="chartsPage" class="charts">
+        <div class="chart">
+            <h2>CPU Usage %</h2>
+            <canvas id="chart1"></canvas>
+        </div>
+        <div class="chart">
+            <h2>Memory Usage %</h2>
+            <canvas id="chart2"></canvas>
+        </div>
+        <div class="chart">
+            <h2>Disk Usage (mb/s)</h2>
+            <canvas id="chart3"></canvas>
+        </div>
+        <div class="chart">
+            <h2>Network Usage (mb/s)</h2>
+            <canvas id="chart4"></canvas>
+        </div>
+    </div>
+    <div id="summaryPage">
+    </div>
+</div>
+</body>
+<style>
+/*  THEMING  */
+:root {
+    --text: #ffffff;
+    --background: #1b1b1b;
+}
+/*  =======  */
+@font-face {
+    font-family: "robotomono";
+    src: url("RobotoMono-Regular.ttf");
+}
+
+body {
+    background: var(--background);
+    color: var(--text);
+    font-family: 'robotomono';
+}
+button {
+    color: black;
+    background-color: white;
+    border: none;
+    margin: 3px;
+    font-size: 16px;
+    border-radius: 2px;
+}
+.charts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-evenly;
+    align-items: stretch;
+}
+/*.charts h2 {
+    flex:none;
+}*/
+.template {
+    display: none;
+}
+.chart {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-width: max(40%, 300px);
+}
+.chart canvas {
+    width:100%;
+}
+.sumchart {
+    min-width: max(20%, 100px);
+}
+h1, h2 {
+    margin-bottom: 0;
+}
+</style>
+<script>
+// Define the API URL
+const CFG = {{CFG}};
+const IPs = CFG["IPs"];
+var addresses = [];
+var names = [];
+for (var i = 0; i < IPs.length; i++) {
+    // names.push(IPs[i][0]);
+    // addresses.push("http://" + IPs[i][1]);
+    addButton(IPs[i][0], "http://" + IPs[i][1]);
+    addToSummary(IPs[i][0], "http://" + IPs[i][1]);
+}
+
+// Save some page elements
+summaryTab = document.getElementById('summaryTab');
+summaryPage = document.getElementById('summaryPage');
+chartsPage = document.getElementById('chartsPage');
+
+// List of charts to delete and redraw
+var charts = [];
+var summaryCharts = [];
+
+// Style variables from css
+var style = getComputedStyle(document.body)
+CSS_text = style.getPropertyValue('--text');
+CSS_background = style.getPropertyValue('--background');
+// Styles as they are applied to charts
+doughnut_border = CSS_background;
+doughnut_border_width = 1;
+
+// setPage("http://" + IPs[0][1]);
+setPage("summary");
+
+function addButton(label, ip) {
+    tabs = document.getElementById('tabselector');
+    newButton = document.createElement('button');
+    newButton.setAttribute('onclick', 'setPage("' + ip + '");');
+    newButton.innerHTML = label;
+    tabs.append(newButton);
+}
+
+function addToSummary(label, ip) {
+    summaryDiv = document.createElement('div');
+    summaryDiv.setAttribute('data-address', ip);
+    summaryDiv.classList.add('charts');
+    summaryTitle = document.createElement('h2');
+    summaryTitle.innerHTML = label;
+    summaryPage.append(summaryTitle);
+
+    summaryDiv1 = document.createElement('div');
+    summaryDiv1.classList.add('chart');
+    summaryDiv1.classList.add('sumchart');
+    summaryTitle1 = document.createElement('h3');
+    summaryTitle1.innerHTML = "CPU Usage";
+    summaryChart1 = document.createElement('canvas');
+    summaryDiv1.append(summaryTitle1);
+    summaryDiv1.append(summaryChart1);
+    summaryDiv.append(summaryDiv1);
+
+    summaryDiv2 = document.createElement('div');
+    summaryDiv2.classList.add('chart');
+    summaryDiv2.classList.add('sumchart');
+    summaryTitle2 = document.createElement('h3');
+    summaryTitle2.innerHTML = "Memory Usage";
+    summaryChart2 = document.createElement('canvas');
+    summaryDiv2.append(summaryTitle2);
+    summaryDiv2.append(summaryChart2);
+    summaryDiv.append(summaryDiv2);
+
+    summaryDiv3 = document.createElement('div');
+    summaryDiv3.classList.add('chart');
+    summaryDiv3.classList.add('sumchart');
+    summaryTitle3 = document.createElement('h3');
+    summaryTitle3.innerHTML = "Disk Usage";
+    summaryChart3 = document.createElement('canvas');
+    summaryDiv3.append(summaryTitle3);
+    summaryDiv3.append(summaryChart3);
+    summaryDiv.append(summaryDiv3);
+
+    summaryPage.append(summaryDiv);
+}
+
+function setPage(page) {
+    // console.log(page);
+    if (page == 'summary') {
+        chartsPage.style.display = 'none';
+        summaryPage.style.display = 'block';
+        updateSummary();
+    } else {
+        chartsPage.style.display = 'flex';
+        summaryPage.style.display = 'none';
+        var address = page;
+        // Make a GET request
+        fetch(address + "/system/history", {
+            mode: 'cors'
+        }).then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok: ' + response.ok);
+        }
+            return response.json();
+        })
+        .then(data => {
+            console.log(data);
+            updateSystem(data);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+}
+
+function updateSummary() {
+    for (var i = 0; i < summaryCharts.length; i++) {
+        summaryCharts[i].destroy();
+    }
+    var children = summaryPage.children;
+    for (var i = 0; i < children.length; i++) {
+        if (children[i].dataset.address === undefined) {
+            continue;
+        }
+        (function(i) {
+            var address = children[i].dataset.address;
+            // Make a GET request
+            fetch(address + "/system", {
+                mode: 'cors'
+            }).then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.ok);
+            }
+                return response.json();
+            })
+            .then(data => {
+                console.log(data);
+                updateSummaryItem(data, children[i]);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        })(i);
+    }
+}
+
+function updateSummaryItem(data, htmlObject) {
+    cpuGraph = htmlObject.children[0].children[1];
+    memGraph = htmlObject.children[1].children[1];
+    disksGraph = htmlObject.children[2].children[1];
+
+    // Disk Summaries
+    diskDatasets = []
+    for (var i = 0; i < data["disks"].length; i++) {
+        var disk  = data["disks"][i];
+        if (!disk["mounted"]) {
+            continue;
+        }
+        diskDatasets.push({
+            label: disk["name"],
+            data: [
+                disk["usage"],
+                100-disk["usage"],
+            ],
+            backgroundColor: [
+                'rgb(54, 162, 235)',
+                '#333'
+            ],
+            borderColor: doughnut_border,
+            borderWidth: doughnut_border_width,
+            hoverOffset: 4
+        });
+    }
+
+    summaryCharts.push(
+        new Chart(cpuGraph, {
+            type: 'doughnut',
+            data: {
+                labels: [
+                    'System',
+                    'User',
+                    'Idle'
+                ],
+                datasets: [{
+                    label: 'CPU Usage',
+                    data: [
+                        data["cpu"]["System"],
+                        data["cpu"]["User"],
+                        100-data["cpu"]["System"]-data["cpu"]["User"]
+                    ],
+                    backgroundColor: [
+                        'rgb(255, 99, 132)',
+                        'rgb(54, 162, 235)',
+                        '#333'
+                    ],
+                    borderColor: doughnut_border,
+                    borderWidth: doughnut_border_width,
+                    hoverOffset: 10
+                }]
+            }
+        }),
+        new Chart(memGraph, {
+            type: 'doughnut',
+            data: {
+                labels: [
+                    'Used',
+                    'Free'
+                ],
+                datasets: [{
+                    label: 'Memory Usage',
+                    data: [
+                        data["mem"]["usage"],
+                        100-data["mem"]["usage"]
+                    ],
+                    backgroundColor: [
+                        'rgb(54, 162, 235)',
+                        '#333'
+                    ],
+                    borderColor: doughnut_border,
+                    borderWidth: doughnut_border_width,
+                    hoverOffset: 4
+                }]
+            }
+        }),
+        new Chart(disksGraph, {
+            type: 'doughnut',
+            data: {
+                labels: [
+                    'Used',
+                    'Free'
+                ],
+                datasets: diskDatasets,
+            }
+        }),
+    );
+}
+
+const cht1 = document.getElementById('chart1');
+const cht2 = document.getElementById('chart2');
+const cht3 = document.getElementById('chart3');
+const cht4 = document.getElementById('chart4');
+
+function updateSystem(data) {
+    syshistory = data["History"];
+    cpuData = [];
+    memData = [];
+    diskData = [];
+    networkData = [];
+    const start = Math.max(0, syshistory.length-200);
+    for (var i = start; i < syshistory.length; i++) {
+        var t = syshistory[i]["time"];
+        if (i+1 < syshistory.length) {
+            var dt = Date.parse(syshistory[i+1]["time"]) - Date.parse(t);
+            if (230000000 < dt) {
+                cpuData = [];
+                memData = [];
+                diskData = [];
+                networkData = [];
+                console.warn("Time jump of size " + dt + ", discarding and continuing")
+                continue
+            }
+        }
+        // console.log(t, syshistory[i]["system"]["cpu"]["User"], syshistory[i]["system"]["cpu"]["System"]);
+        cpuData.push({
+            "time": t,
+            "User": syshistory[i]["system"]["cpu"]["User"] + syshistory[i]["system"]["cpu"]["System"],
+            "System": syshistory[i]["system"]["cpu"]["System"]
+        })
+        memData.push({
+            "time": t,
+            "Usage": syshistory[i]["system"]["mem"]["usage"]
+        })
+        disks = syshistory[i]["system"]["disks"]
+        diskData.push({
+            "time": t,
+        })
+        for (var ii = 0; ii < disks.length; ii++) {
+            diskData[i-start][ii.toString()] = (disks[ii]["read_speed"] + disks[ii]["write_speed"])/1000000;
+        }
+        networks = syshistory[i]["system"]["network"]
+        networkData.push({
+            "time": t,
+        })
+        for (var ii = 0; ii < networks.length; ii++) {
+            networkData[i-start][ii.toString()] = (networks[ii]["recv_speed"] + networks[ii]["sent_speed"])/1000000;
+        }
+    }
+
+    diskDatasets = []
+    disks = syshistory[0]["system"]["disks"]
+    for (var i = 0; i < disks.length; i++) {
+        diskDatasets.push({
+            label: disks[i]["name"],
+            data: diskData,
+            borderWidth: 1,
+            pointRadius: .5,
+            fill: 'origin',
+            parsing: {
+                yAxisKey: i.toString(),
+            }
+        });
+    }
+
+    networkDatasets = []
+    networks = syshistory[0]["system"]["network"]
+    for (var i = 0; i < networks.length; i++) {
+        networkDatasets.push({
+            label: networks[i]["name"],
+            data: networkData,
+            borderWidth: 1,
+            pointRadius: .5,
+            fill: 'origin',
+            parsing: {
+                yAxisKey: i.toString(),
+            }
+        });
+    }
+
+    for (var i = 0; i < charts.length; i++) {
+        charts[i].destroy();
+    }
+
+    charts = [
+        new Chart(cht1, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'System',
+                    data: cpuData,
+                    borderWidth: 1,
+                    pointRadius: .5,
+                    fill: 'origin',
+                    parsing: {
+                        yAxisKey: 'System',
+                    }
+                }, {
+                    label: 'User',
+                    data: cpuData,
+                    borderWidth: 1,
+                    pointRadius: .5,
+                    fill: '-1',
+                    parsing: {
+                        yAxisKey: 'User',
+                    }
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'minute',
+                            displayFormats: {
+                                minute: 'h:mm a'
+                            }
+                        },
+                        ticks: {
+                            maxRotation: 0
+                        },
+                    },
+                    y: {
+                        // beginAtZero: true
+                        min: 0,
+                        max: 100
+                    }
+                },
+                parsing: {
+                    xAxisKey: 'time',
+                }
+            }
+        }),
+        new Chart(cht2, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    // label: 'Mem Usage %',
+                    data: memData,
+                    borderWidth: 1,
+                    pointRadius: .5,
+                    fill: 'origin',
+                    parsing: {
+                        yAxisKey: 'Usage',
+                    }
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'minute',
+                            displayFormats: {
+                                minute: 'h:mm a'
+                            }
+                        },
+                        ticks: {
+                            maxRotation: 0
+                        },
+                    },
+                    y: {
+                        // beginAtZero: true
+                        min: 0,
+                        max: 100
+                    }
+                },
+                parsing: {
+                    xAxisKey: 'time',
+                }
+            }
+        }),
+        new Chart(cht3, {
+            type: 'line',
+            data: {
+                datasets: diskDatasets
+            },
+            options: {
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'minute',
+                            displayFormats: {
+                                minute: 'h:mm a'
+                            }
+                        },
+                        ticks: {
+                            maxRotation: 0
+                        },
+                    },
+                    y: {
+                        beginAtZero: true
+                    }
+                },
+                parsing: {
+                    xAxisKey: 'time',
+                }
+            }
+        }),
+        new Chart(cht4, {
+            type: 'line',
+            data: {
+                datasets: networkDatasets
+            },
+            options: {
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: 'minute',
+                            displayFormats: {
+                                minute: 'h:mm a'
+                            }
+                        },
+                        ticks: {
+                            maxRotation: 0
+                        },
+                    },
+                    y: {
+                        beginAtZero: true
+                    }
+                },
+                parsing: {
+                    xAxisKey: 'time',
+                }
+            }
+        })
+    ]
+}
+</script>
+</html>
