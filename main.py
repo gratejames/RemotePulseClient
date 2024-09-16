@@ -20,13 +20,13 @@ try:
     with open("config.json", "r") as f:
         cfg = json.load(f)
 except FileNotFoundError:
-    cfg = {"IPS": [["local", "127.0.0.1:3545"]]}
+    cfg = {"IPS": [["Local", "127.0.0.1:3545"]]}
     with open("config.json", "w") as f:
         json.dump(cfg, f)
 
 @app.route("/")
 # @auth.login_required
-def hello_world():
+def main():
     with open("index.html", "r") as f:
         file = f.read().replace("{{CFG}}", str(cfg))
     return file
