@@ -12,3 +12,10 @@ It serves the index.html file with your settings (config.json) injected into it 
 The server runs on port 3545 and offers a simple API that make available system stats (from psutils) at a snapshot, as well as over a history.  
 It can provide CORS, which accepts requests from all domain by default but can be changed to only accept requests from wherever your client is running.  
 Currently the detailed process information is commented out while the frontend is prepared.
+
+## Installation
+For my setup, I put the client and server folders into /opt/RemotePulseClient and /opt/RemotePulseServer, and add a conf file into my /etc/apache2/sites-available/ folder that redirects a subdomain to the client subservice. Then I wrote some quick service files to allow them to run as daemons in the background, and allowed ports 3545 and 3546 for the client and server services.
+
+## TODO
+ + Write an installation script
+ + Auto-update pages
