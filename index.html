@@ -381,52 +381,50 @@ function updateSystem() {
 }
 
 function updateSystemItem(data) {
-    if (newPage) {
-        syshistory = data["History"];
-        cpuData = [];
-        memData = [];
-        diskData = [];
-        networkData = [];
-        const start = Math.max(0, syshistory.length-200);
-        for (var i = start; i < syshistory.length; i++) {
-            var t = syshistory[i]["time"];
-            if (i+1 < syshistory.length) {
-                var dt = Date.parse(syshistory[i+1]["time"]) - Date.parse(t);
-                if (230000000 < dt) {
-                    cpuData = [];
-                    memData = [];
-                    diskData = [];
-                    networkData = [];
-                    console.warn("Time jump of size " + dt + ", discarding and continuing")
-                    continue
-                }
-            }
-            // console.log(t, syshistory[i]["system"]["cpu"]["User"], syshistory[i]["system"]["cpu"]["System"]);
-            cpuData.push({
-                "time": t,
-                "User": syshistory[i]["system"]["cpu"]["User"] + syshistory[i]["system"]["cpu"]["System"],
-                "System": syshistory[i]["system"]["cpu"]["System"]
-            })
-            memData.push({
-                "time": t,
-                "Usage": syshistory[i]["system"]["mem"]["usage"]
-            })
-            disks = syshistory[i]["system"]["disks"]
-            diskData.push({
-                "time": t,
-            })
-            for (var ii = 0; ii < disks.length; ii++) {
-                diskData[i-start][ii.toString()] = (disks[ii]["read_speed"] + disks[ii]["write_speed"])/1000000;
-            }
-            networks = syshistory[i]["system"]["network"]
-            networkData.push({
-                "time": t,
-            })
-            for (var ii = 0; ii < networks.length; ii++) {
-                networkData[i-start][ii.toString()] = (networks[ii]["recv_speed"] + networks[ii]["sent_speed"])/1000000;
+    syshistory = data["History"];
+    cpuData = [];
+    memData = [];
+    diskData = [];
+    networkData = [];
+    const start = Math.max(0, syshistory.length-200);
+    for (var i = start; i < syshistory.length; i++) {
+        var t = syshistory[i]["time"];
+        if (i+1 < syshistory.length) {
+            var dt = Date.parse(syshistory[i+1]["time"]) - Date.parse(t);
+            if (230000000 < dt) {
+                cpuData = [];
+                memData = [];
+                diskData = [];
+                networkData = [];
+                console.warn("Time jump of size " + dt + ", discarding and continuing")
+                continue
             }
         }
-
+        cpuData.push({
+            "time": t,
+            "User": syshistory[i]["system"]["cpu"]["User"] + syshistory[i]["system"]["cpu"]["System"],
+            "System": syshistory[i]["system"]["cpu"]["System"]
+        })
+        memData.push({
+            "time": t,
+            "Usage": syshistory[i]["system"]["mem"]["usage"]
+        })
+        disks = syshistory[i]["system"]["disks"]
+        diskData.push({
+            "time": t,
+        })
+        for (var ii = 0; ii < disks.length; ii++) {
+            diskData[i-start][ii.toString()] = (disks[ii]["read_speed"] + disks[ii]["write_speed"])/1000000;
+        }
+        networks = syshistory[i]["system"]["network"]
+        networkData.push({
+            "time": t,
+        })
+        for (var ii = 0; ii < networks.length; ii++) {
+            networkData[i-start][ii.toString()] = (networks[ii]["recv_speed"] + networks[ii]["sent_speed"])/1000000;
+        }
+    }
+    if (newPage) {
         diskDatasets = []
         disks = syshistory[0]["system"]["disks"]
         for (var i = 0; i < disks.length; i++) {
@@ -608,7 +606,22 @@ function updateSystemItem(data) {
         ]
         newPage = false;
     } else {
-        console.log("Already content, update!");
+        charts[0].data.datasets[0].data = cpuData;
+        charts[0].data.datasets[1].data = cpuData;
+
+        charts[1].data.datasets[0].data = memData;
+
+        for (var i = 0; i < syshistory[0]["system"]["disks"].length; i++) {
+            charts[2].data.datasets[i].data = diskData;
+        }
+        for (var i = 0; i < syshistory[0]["system"]["network"].length; i++) {
+            charts[3].data.datasets[i].data = networkData;
+        }
+
+        charts[0].update();
+        charts[1].update();
+        charts[2].update();
+        charts[3].update();
     }
 }
 </script>

@@ -18,4 +18,6 @@ For my setup, I put the client and server folders into /opt/RemotePulseClient an
 
 ## TODO
  + Write an installation script
+
+## Done
  + Auto-update pages
