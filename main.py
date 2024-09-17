@@ -1,9 +1,9 @@
 from flask import Flask, render_template, Response
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
-import threading
 import time
 import json
+import requests
 
 app = Flask(__name__)
 # auth = HTTPBasicAuth()
@@ -20,16 +20,33 @@ try:
     with open("config.json", "r") as f:
         cfg = json.load(f)
 except FileNotFoundError:
-    cfg = {"IPS": [["Local", "127.0.0.1:3545"]]}
+    cfg = {"IPs": [["Local", "127.0.0.1:3545"]]}
     with open("config.json", "w") as f:
         json.dump(cfg, f)
+
+
+names = []
+for k, v in cfg["IPs"]:
+    names.append(k)
 
 @app.route("/")
 # @auth.login_required
 def main():
     with open("index.html", "r") as f:
-        file = f.read().replace("{{CFG}}", str(cfg))
+        file = f.read().replace("{{CFG}}", str(names))
     return file
+
+
+@app.route("/<string:device>/<path:path>")
+# @auth.login_required
+def subDeviceRouting(device, path):
+    for k, v in cfg["IPs"]:
+        if k == device:
+            ip = v
+    if ip is None:
+        return f"Device {device} not found"
+    newPath = 'http://' + ip + '/' + path
+    return requests.get(newPath).content
 
 @app.route("/RobotoMono-Regular.ttf")
 def font():

@@ -91,12 +91,13 @@ h1, h2 {
 </style>
 <script>
 // Define the API URL
-const CFG = {{CFG}};
-const IPs = CFG["IPs"];
-for (var i = 0; i < IPs.length; i++) {
-    addButton(IPs[i][0], "http://" + IPs[i][1]);
-    addToSummary(IPs[i][0], "http://" + IPs[i][1]);
+const names = {{CFG}};
+for (var i = 0; i < names.length; i++) {
+    addButton(names[i]);
+    addToSummary(names[i]);
 }
+
+const currentDomain = 'http://localhost:3546/'
 
 // Save some page elements
 summaryTab = document.getElementById('summaryTab');
@@ -129,17 +130,17 @@ const cht4 = document.getElementById('chart4');
 // setPage("http://" + IPs[0][1]);
 setPage("summary");
 
-function addButton(label, ip) {
+function addButton(label) {
     tabs = document.getElementById('tabselector');
     newButton = document.createElement('button');
-    newButton.setAttribute('onclick', 'setPage("' + ip + '");');
+    newButton.setAttribute('onclick', 'setPage("' + label + '");');
     newButton.innerHTML = label;
     tabs.append(newButton);
 }
 
-function addToSummary(label, ip) {
+function addToSummary(label) {
     summaryDiv = document.createElement('div');
-    summaryDiv.setAttribute('data-address', ip);
+    summaryDiv.setAttribute('data-address', label);
     summaryDiv.classList.add('charts');
     summaryTitle = document.createElement('h2');
     summaryTitle.innerHTML = label;
@@ -211,7 +212,7 @@ function updateSummary() {
         }
         var address = children[i].dataset.address;
         // Make a GET request
-        var fetchPromise = fetch(address + "/system", {
+        var fetchPromise = fetch(currentDomain + address + "/system", {
             mode: 'cors'
         }).then(response => {
         if (!response.ok) {
@@ -362,7 +363,7 @@ function updateSummaryItem(data, index) {
 
 function updateSystem() {
     // Make a GET request
-    fetch(currentPageAddress + "/system/history", {
+    fetch(currentDomain + currentPageAddress + "/system/history", {
         mode: 'cors'
     }).then(response => {
     if (!response.ok) {
